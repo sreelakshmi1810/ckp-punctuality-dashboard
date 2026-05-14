@@ -38,6 +38,14 @@ import streamlit as st
 import plotly.express as px
 import plotly.graph_objects as go
 
+# streamlit-option-menu gives a polished icon-based navigation menu.
+# If it is not installed, the app falls back to a plain (but functional) menu.
+try:
+    from streamlit_option_menu import option_menu
+    HAS_OPTION_MENU = True
+except ImportError:
+    HAS_OPTION_MENU = False
+
 # =====================================================================
 # PAGE CONFIG  (must be the first Streamlit call)
 # =====================================================================
@@ -92,6 +100,52 @@ st.markdown(f"""
   .corridor-banner h1 {{ color: white; margin: 0 0 4px 0; font-size: 1.5rem; }}
   .corridor-banner p {{ color: #E0E6ED; margin: 0; font-size: 0.85rem; }}
   .src-note {{ color: {MUTED}; font-size: 0.78rem; font-style: italic; }}
+
+  /* ---------- Sidebar ---------- */
+  [data-testid="stSidebar"] {{
+      background-color: #F4F6F8;
+      border-right: 1px solid #E0E6ED;
+  }}
+  [data-testid="stSidebar"] > div:first-child {{ padding-top: 1.1rem; }}
+  .sidebar-brand {{
+      display: flex; align-items: center; gap: 11px;
+      padding: 13px 14px; margin-bottom: 6px;
+      background: linear-gradient(135deg, {NAVY} 0%, #1B2A41 100%);
+      border-radius: 10px; border-left: 4px solid {SAFFRON};
+  }}
+  .sidebar-brand .brand-icon {{ font-size: 26px; line-height: 1; }}
+  .sidebar-brand .brand-title {{
+      color: white; font-weight: 700; font-size: 15px; line-height: 1.15;
+  }}
+  .sidebar-brand .brand-sub {{
+      color: #AEB9C7; font-size: 10.5px; margin-top: 3px; letter-spacing: 0.2px;
+  }}
+  .sidebar-section-label {{
+      font-size: 10.5px; font-weight: 700; letter-spacing: 0.9px;
+      text-transform: uppercase; color: {MUTED};
+      margin: 18px 0 9px 4px;
+  }}
+  .glance-card {{
+      background: white; border: 1px solid #E0E6ED; border-radius: 8px;
+      padding: 9px 12px; margin-bottom: 7px; border-left: 3px solid {STEEL};
+  }}
+  .glance-card.danger {{ border-left-color: {CRIMSON}; }}
+  .glance-card.accent {{ border-left-color: {SAFFRON}; }}
+  .glance-card .gc-label {{
+      font-size: 9.5px; color: {MUTED}; text-transform: uppercase; letter-spacing: 0.4px;
+  }}
+  .glance-card .gc-value {{
+      font-size: 17px; font-weight: 700; color: {NAVY}; line-height: 1.3;
+  }}
+  .glance-card .gc-delta {{ font-size: 10px; font-weight: 600; }}
+  .glance-card .gc-delta.down {{ color: {CRIMSON}; }}
+  .glance-card .gc-delta.up {{ color: {GREEN}; }}
+  /* fallback radio: hide the bullet circles */
+  [data-testid="stSidebar"] div[role="radiogroup"] label > div:first-child {{ display: none; }}
+  [data-testid="stSidebar"] div[role="radiogroup"] label {{
+      background: white; border: 1px solid #E0E6ED; border-radius: 8px;
+      padding: 8px 12px; margin-bottom: 4px; width: 100%;
+  }}
 </style>
 """, unsafe_allow_html=True)
 
@@ -738,24 +792,96 @@ PAGES = {
     "Action Plan Tracker":           page_actions,
 }
 
+# Bootstrap-icon name for each page (used by the option-menu navigation)
+PAGE_ICONS = [
+    "speedometer2",        # Overview
+    "graph-down-arrow",    # Punctuality Trend
+    "list-check",          # Cause Analysis
+    "diagram-3",           # Control Boards
+    "signpost-split",      # Sub-Corridor Detail
+    "clock-history",       # Delay Attribution
+    "gear-wide-connected", # Operational Drivers
+    "clipboard-check",     # Action Plan Tracker
+]
+
+# Pre-compute the live KPIs shown in the sidebar "At a glance" panel
+_last = PUNCTUALITY_TREND.iloc[-1]
+_prev = PUNCTUALITY_TREND.iloc[-2]
+_det_curr = int(CAUSE_CODES["2025-26"].sum())
+_det_prev = int(CAUSE_CODES["2024-25"].sum())
+_det_yoy = (_det_curr - _det_prev) / _det_prev * 100
+_wagon_now = int(WAGON_HOLDING.iloc[-1]["Avg Wagon Holding"])
+_wagon_first = int(WAGON_HOLDING.iloc[0]["Avg Wagon Holding"])
+_wagon_yoy = (_wagon_now - _wagon_first) / _wagon_first * 100
+
 with st.sidebar:
-    st.markdown("### Navigation")
-    choice = st.radio("Section", list(PAGES.keys()), label_visibility="collapsed")
-    st.divider()
-    st.markdown("### About")
-    st.caption(
-        "Interactive dashboard for assessing passenger-train punctuality on the "
-        "CKP-ROU-TATA sub-corridor of SER."
+    # --- Branded header ---
+    st.markdown(
+        """
+        <div class="sidebar-brand">
+          <div class="brand-icon">🚆</div>
+          <div>
+            <div class="brand-title">CKP Punctuality</div>
+            <div class="brand-sub">SER &middot; Chakradharpur Division</div>
+          </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
     )
-    st.markdown("**Data sources**")
-    st.caption(
-        "1. IIM Kozhikode IRTO Programme - SER CKP Passenger Delay Optimisation Case Study\n\n"
-        "2. Action Plan for reducing Wagon Balance & Improving Mobility - CKP Division (05.04.2026)\n\n"
-        "3. Punctuality Improvement Action Plan - CKP Division (24.11.2025)"
+
+    # --- Navigation ---
+    if HAS_OPTION_MENU:
+        choice = option_menu(
+            menu_title=None,
+            options=list(PAGES.keys()),
+            icons=PAGE_ICONS,
+            default_index=0,
+            key="nav_menu",
+            styles={
+                "container": {"padding": "4px 0", "background-color": "transparent"},
+                "icon": {"color": SAFFRON, "font-size": "14px"},
+                "nav-link": {
+                    "font-size": "13px", "font-weight": "500", "color": STEEL,
+                    "padding": "9px 12px", "margin": "2px 0", "border-radius": "8px",
+                    "--hover-color": "#E8ECEF",
+                },
+                "nav-link-selected": {
+                    "background-color": NAVY, "color": "white", "font-weight": "600",
+                },
+            },
+        )
+    else:
+        st.markdown('<div class="sidebar-section-label">Navigation</div>', unsafe_allow_html=True)
+        choice = st.radio("Section", list(PAGES.keys()), label_visibility="collapsed")
+
+    # --- At a glance: live KPI panel ---
+    st.markdown('<div class="sidebar-section-label">At a glance &middot; FY 2025-26</div>',
+                unsafe_allow_html=True)
+    st.markdown(
+        f"""
+        <div class="glance-card danger">
+          <div class="gc-label">M/Exp Punctuality</div>
+          <div class="gc-value">{_last['M/Exp %']:.2f}%</div>
+          <div class="gc-delta down">&#9660; {_prev['M/Exp %'] - _last['M/Exp %']:.2f} pp vs {_prev['Year']}</div>
+        </div>
+        <div class="glance-card">
+          <div class="gc-label">Overall Punctuality</div>
+          <div class="gc-value">{_last['Overall %']:.2f}%</div>
+          <div class="gc-delta down">&#9660; {_prev['Overall %'] - _last['Overall %']:.2f} pp vs {_prev['Year']}</div>
+        </div>
+        <div class="glance-card danger">
+          <div class="gc-label">Trains Detained &middot; Apr-Oct</div>
+          <div class="gc-value">{_det_curr:,}</div>
+          <div class="gc-delta down">&#9650; {_det_yoy:.1f}% YoY</div>
+        </div>
+        <div class="glance-card accent">
+          <div class="gc-label">Avg Wagon Holding</div>
+          <div class="gc-value">{_wagon_now:,}</div>
+          <div class="gc-delta down">&#9650; {_wagon_yoy:.1f}% vs {WAGON_HOLDING.iloc[0]['Year']}</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
     )
-    st.divider()
-    st.caption("To refresh data: edit the DATA section at the top of streamlit_app.py and save, "
-               "then click Rerun. The Delay Attribution page is editable directly in the browser.")
 
 # Render the selected page
 PAGES[choice]()
