@@ -1,0 +1,5 @@
+# CKP-ROU-TATA Punctuality Dashboard - Streamlit app dependencies
+# Install with:  pip install -r requirements.txt
+streamlit>=1.30
+plotly>=5.18
+pandas>=2.0
